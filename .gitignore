@@ -1,0 +1,27 @@
+# ── Secrets — NEVER commit these ─────────────────────────────────
+.env
+*.json
+credentials.json
+service_account.json
+
+# ── Runtime files ─────────────────────────────────────────────────
+sync.log
+last_run.txt
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── Python environment ────────────────────────────────────────────
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ── OS / editor ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
