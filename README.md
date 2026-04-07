@@ -61,9 +61,28 @@ The `cac_summary` tab contains three stacked sections (Campaign → AdSet → Ad
 
 ### 1. Meta Marketing API
 
-**What you need:** App ID, App Secret, long-lived Access Token, Ad Account ID
+**What you need:** App ID, App Secret, Access Token, Ad Account ID
 
-**Steps:**
+There are two ways to get an access token. **Option A (recommended)** never expires and requires no maintenance.
+
+---
+
+#### Option A — System User Token (Never Expires) ✅ Recommended
+
+Use this if you have Meta Business Manager. The token never expires and requires no rotation.
+
+1. Go to [business.facebook.com](https://business.facebook.com) → **Settings → Users → System Users**
+2. Click **Add** → create a System User (e.g. `CAC_Tracker_Github`) with **Admin** role
+3. Click **Generate Token** → select your app → set expiry to **Never** → add the `ads_read` permission
+4. If no permissions appear, go to [developers.facebook.com](https://developers.facebook.com) → your app → **App Roles → Roles** → **Add People** → add the system user as **Administrator** → then retry step 3
+5. Copy the token — this is your `META_ACCESS_TOKEN`. It never expires.
+
+---
+
+#### Option B — Long-Lived User Token (~60 days)
+
+Use this if you don't have Business Manager access.
+
 1. Go to [developers.facebook.com](https://developers.facebook.com) and log in
 2. Click **My Apps → Create App** and select **Business** type
 3. From the app dashboard, go to **Settings → Basic** — note your `App ID` and `App Secret`
@@ -78,9 +97,12 @@ The `cac_summary` tab contains three stacked sections (Campaign → AdSet → Ad
      &fb_exchange_token={SHORT_LIVED_TOKEN}
    ```
    Copy the `access_token` from the response
-7. Your **Ad Account ID** is in Meta Ads Manager — top-left account selector. Format: `act_XXXXXXXXX`
 
 > **Token expiry:** Long-lived tokens expire every ~60 days. When expired, the pipeline logs `META TOKEN EXPIRED OR INVALID`. Repeat steps 5–6 and update `META_ACCESS_TOKEN` in your `.env` or GitHub Secrets.
+
+---
+
+7. Your **Ad Account ID** is in Meta Ads Manager — top-left account selector. Format: `act_XXXXXXXXX`
 
 ---
 
@@ -230,7 +252,7 @@ To trigger a run manually: **Actions → Daily Meta CAC Sync → Run workflow**.
 |------|--------|
 | Never commit `.env` | Listed in `.gitignore` |
 | Never commit credentials JSON | All `*.json` credential files are gitignored |
-| Meta token rotation | Expires every ~60 days. Renew via Graph API Explorer and update `META_ACCESS_TOKEN`. Pipeline logs a clear error when expired. |
+| Meta token rotation | **System User Token (Option A):** never expires — no action needed. **Long-lived token (Option B):** expires every ~60 days. Renew via Graph API Explorer and update `META_ACCESS_TOKEN`. Pipeline logs a clear error when expired. |
 | Airtable token | Personal Access Tokens do not expire unless revoked. Rotate periodically as best practice. |
 | Google service account | Keys do not expire but should be rotated annually. Delete old keys in Cloud Console after rotating. |
 | `sync.log` | Gitignored — not pushed to remote. Review locally or via GitHub Actions stdout. |
