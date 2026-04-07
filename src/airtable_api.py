@@ -4,6 +4,7 @@ airtable_api.py
 Pulls lead records from Airtable.
 
 - Pulls from 'Fb (CAC)' view — already filtered to FB leads.
+- Only fetches records created within the last 120 days for efficiency.
 - Handles pagination automatically via pyairtable.
 - Computes Month (Mmm YYYY) from Created date.
 - Standardises all dates to YYYY-MM-DD.
@@ -12,12 +13,14 @@ Pulls lead records from Airtable.
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from pyairtable import Api
 
 logger = logging.getLogger(__name__)
+
+AIRTABLE_LOOKBACK_DAYS = 120
 
 
 def _parse_date(value) -> str:
@@ -60,6 +63,7 @@ def _month_from_date(date_str: str) -> str:
 def pull_airtable_data() -> list[dict]:
     """
     Returns a list of dicts, one per lead in the Fb (CAC) view.
+    Only fetches records created within the last 120 days.
     """
     api_key = os.environ["AIRTABLE_API_KEY"]
     base_id = os.environ["AIRTABLE_BASE_ID"]
@@ -68,8 +72,14 @@ def pull_airtable_data() -> list[dict]:
     api = Api(api_key)
     table = api.table(base_id, table_name)
 
-    logger.info("Fetching Airtable records from base %s / table %s / view 'Fb (CAC)' …", base_id, table_name)
-    all_records = table.all(view="Fb (CAC)")
+    cutoff = (datetime.utcnow() - timedelta(days=AIRTABLE_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+    formula = f"IS_AFTER({{created}}, '{cutoff}')"
+
+    logger.info(
+        "Fetching Airtable records from base %s / table %s / view 'Fb (CAC)' (last %d days) …",
+        base_id, table_name, AIRTABLE_LOOKBACK_DAYS
+    )
+    all_records = table.all(view="Fb (CAC)", formula=formula)
     logger.info("Fetched %d records from view", len(all_records))
 
     leads: list[dict] = []
