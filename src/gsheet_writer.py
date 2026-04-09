@@ -164,6 +164,26 @@ def write_airtable_leads(records: list[dict], sheet_id: str) -> None:
     upsert_rows(ws, records, AIRTABLE_LEADS_COLUMNS, key_col="AirtableID")
 
 
+def read_all_meta_spend(sheet_id: str) -> list[dict]:
+    """Reads all rows from meta_spend and returns them as a list of dicts.
+    Used by the CAC summary to get full historical spend, not just this run's pull.
+    """
+    client = _get_client()
+    sh = client.open_by_key(sheet_id)
+    ws = sh.worksheet("meta_spend")
+    return ws.get_all_records()
+
+
+def read_all_airtable_leads(sheet_id: str) -> list[dict]:
+    """Reads all rows from airtable_leads and returns them as a list of dicts.
+    Used by the CAC summary to get full historical leads, not just the 120-day pull.
+    """
+    client = _get_client()
+    sh = client.open_by_key(sheet_id)
+    ws = sh.worksheet("airtable_leads")
+    return ws.get_all_records()
+
+
 def is_meta_spend_empty(sheet_id: str) -> bool:
     """Returns True if meta_spend has no data rows (used to detect first run)."""
     client = _get_client()

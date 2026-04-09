@@ -134,11 +134,18 @@ def run() -> None:
     try:
         from meta_api import get_active_names
         from cac_summary import write_cac_summary
+        from gsheet_writer import read_all_meta_spend, read_all_airtable_leads
         active_names = get_active_names()
+        all_meta_records = read_all_meta_spend(sheet_id)
+        all_airtable_records = read_all_airtable_leads(sheet_id)
+        logger.info(
+            "Loaded full history — %d meta rows, %d airtable leads",
+            len(all_meta_records), len(all_airtable_records),
+        )
         client = _get_client()
         sh = client.open_by_key(sheet_id)
         ws_cac = sh.worksheet("cac_summary")
-        write_cac_summary(meta_records, airtable_records, ws_cac, active_names)
+        write_cac_summary(all_meta_records, all_airtable_records, ws_cac, active_names)
     except Exception as exc:
         logger.error("CAC summary write failed: %s", exc)
         raise
