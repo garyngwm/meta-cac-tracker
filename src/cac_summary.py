@@ -61,8 +61,8 @@ def _aggregate(
     """
     spend_by: dict[tuple, float] = defaultdict(float)
     for r in meta_records:
-        month = r.get("month", "").strip()
-        name = r.get(meta_key, "").strip()
+        month = str(r.get("month") or "").strip()
+        name = str(r.get(meta_key) or "").strip()
         if not month or not name:
             continue
         if active_names is not None and name not in active_names:
@@ -74,8 +74,8 @@ def _aggregate(
 
     leads_by: dict[tuple, dict] = defaultdict(lambda: {"leads": 0, "showups": 0, "conversions": 0})
     for r in airtable_records:
-        month = r.get("Month", "").strip()
-        name = r.get(airtable_key, "").strip()
+        month = str(r.get("Month") or "").strip()
+        name = str(r.get(airtable_key) or "").strip()
         if not month or not name:
             continue
         if active_names is not None and name not in active_names:
