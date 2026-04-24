@@ -18,7 +18,8 @@ import gspread
 
 logger = logging.getLogger(__name__)
 
-COLUMNS = ["Month", "Name", "Spend", "Leads", "Show-up", "Conversions", "CPL", "CPSU", "CAC", "L-SU%", "Conv%"]
+COLUMNS    = ["Month", "Name",         "Spend", "Leads", "Show-up", "Conversions", "CPL", "CPSU", "CAC", "L-SU%", "Conv%"]
+AD_COLUMNS = ["Month", "Name", "ad_id", "Spend", "Leads", "Show-up", "Conversions", "CPL", "CPSU", "CAC", "L-SU%", "Conv%"]
 
 
 # ---------------------------------------------------------------------------
@@ -143,12 +144,18 @@ def _aggregate(
 # Section builder
 # ---------------------------------------------------------------------------
 
-def _build_section(data: dict, level_label: str) -> list[list]:
+def _build_section(data: dict, level_label: str, name_to_id: dict | None = None) -> list[list]:
+    """
+    Builds rows for a section.
+    name_to_id: optional dict of {ad_name: ad_id} — only passed for Ad level section.
+    When provided, ad_id is included as a column next to Name.
+    """
+    cols = AD_COLUMNS if name_to_id is not None else COLUMNS
     rows: list[list] = []
 
     # Section title + column headers
     rows.append([f"── {level_label.upper()} LEVEL ──"])
-    rows.append(COLUMNS)
+    rows.append(cols)
 
     months = sorted({k[0] for k in data}, key=_month_sort_key)
 
@@ -166,18 +173,30 @@ def _build_section(data: dict, level_label: str) -> list[list]:
             m_showups += showups
             m_conv += conv
 
-            rows.append([
-                month, name,
-                round(spend, 2), leads, showups, conv,
-                _safe_div(spend, leads),
-                _safe_div(spend, showups),
-                _safe_div(spend, conv),
-                _pct(showups, leads),
-                _pct(conv, leads),
-            ])
+            if name_to_id is not None:
+                ad_id = name_to_id.get(name, "")
+                rows.append([
+                    month, name, ad_id,
+                    round(spend, 2), leads, showups, conv,
+                    _safe_div(spend, leads),
+                    _safe_div(spend, showups),
+                    _safe_div(spend, conv),
+                    _pct(showups, leads),
+                    _pct(conv, leads),
+                ])
+            else:
+                rows.append([
+                    month, name,
+                    round(spend, 2), leads, showups, conv,
+                    _safe_div(spend, leads),
+                    _safe_div(spend, showups),
+                    _safe_div(spend, conv),
+                    _pct(showups, leads),
+                    _pct(conv, leads),
+                ])
 
-        # Monthly total
-        rows.append([
+        # Monthly total — no ad_id for totals
+        total_row = [
             month, "— Total —",
             round(m_spend, 2), int(m_leads), int(m_showups), int(m_conv),
             _safe_div(m_spend, m_leads),
@@ -185,15 +204,18 @@ def _build_section(data: dict, level_label: str) -> list[list]:
             _safe_div(m_spend, m_conv),
             _pct(m_showups, m_leads),
             _pct(m_conv, m_leads),
-        ])
-        rows.append([""] * len(COLUMNS))  # blank spacer between months
+        ]
+        if name_to_id is not None:
+            total_row.insert(2, "")  # blank ad_id for total row
+        rows.append(total_row)
+        rows.append([""] * len(cols))  # blank spacer between months
 
     # ------------------------------------------------------------------
     # Overall (lifetime) section
     # ------------------------------------------------------------------
-    rows.append([""] * len(COLUMNS))
+    rows.append([""] * len(cols))
     rows.append([f"── {level_label.upper()} — OVERALL (Lifetime) ──"])
-    rows.append(COLUMNS)
+    rows.append(cols)
 
     overall: dict[str, dict] = defaultdict(lambda: {"spend": 0.0, "leads": 0, "showups": 0, "conversions": 0})
     for (_, name), d in data.items():
@@ -211,18 +233,30 @@ def _build_section(data: dict, level_label: str) -> list[list]:
         grand_showups += d["showups"]
         grand_conv += d["conversions"]
 
-        rows.append([
-            "Overall", name,
-            round(d["spend"], 2), d["leads"], d["showups"], d["conversions"],
-            _safe_div(d["spend"], d["leads"]),
-            _safe_div(d["spend"], d["showups"]),
-            _safe_div(d["spend"], d["conversions"]),
-            _pct(d["showups"], d["leads"]),
-            _pct(d["conversions"], d["leads"]),
-        ])
+        if name_to_id is not None:
+            ad_id = name_to_id.get(name, "")
+            rows.append([
+                "Overall", name, ad_id,
+                round(d["spend"], 2), d["leads"], d["showups"], d["conversions"],
+                _safe_div(d["spend"], d["leads"]),
+                _safe_div(d["spend"], d["showups"]),
+                _safe_div(d["spend"], d["conversions"]),
+                _pct(d["showups"], d["leads"]),
+                _pct(d["conversions"], d["leads"]),
+            ])
+        else:
+            rows.append([
+                "Overall", name,
+                round(d["spend"], 2), d["leads"], d["showups"], d["conversions"],
+                _safe_div(d["spend"], d["leads"]),
+                _safe_div(d["spend"], d["showups"]),
+                _safe_div(d["spend"], d["conversions"]),
+                _pct(d["showups"], d["leads"]),
+                _pct(d["conversions"], d["leads"]),
+            ])
 
     # Grand total row
-    rows.append([
+    grand_row = [
         "Overall", "── Grand Total ──",
         round(grand_spend, 2), int(grand_leads), int(grand_showups), int(grand_conv),
         _safe_div(grand_spend, grand_leads),
@@ -230,12 +264,15 @@ def _build_section(data: dict, level_label: str) -> list[list]:
         _safe_div(grand_spend, grand_conv),
         _pct(grand_showups, grand_leads),
         _pct(grand_conv, grand_leads),
-    ])
+    ]
+    if name_to_id is not None:
+        grand_row.insert(2, "")  # blank ad_id for grand total
+    rows.append(grand_row)
 
     # Spacer before next section
-    rows.append([""] * len(COLUMNS))
-    rows.append([""] * len(COLUMNS))
-    rows.append([""] * len(COLUMNS))
+    rows.append([""] * len(cols))
+    rows.append([""] * len(cols))
+    rows.append([""] * len(cols))
 
     return rows
 
@@ -269,9 +306,13 @@ def write_cac_summary(
         ("Ad",       "ad_name",       "Ads",      active_names.get("ads")       if active_names else None),
     ]
 
+    # Reverse lookup: ad_name → ad_id (for Ad level column display)
+    ad_name_to_id = {v["ad_name"]: k for k, v in ad_id_lookup.items() if v.get("ad_name")}
+
     for level_label, meta_key, airtable_key, names_filter in sections:
         data = _aggregate(meta_records, airtable_records, meta_key, airtable_key, names_filter, ad_id_lookup)
-        all_rows.extend(_build_section(data, level_label))
+        name_to_id = ad_name_to_id if level_label == "Ad" else None
+        all_rows.extend(_build_section(data, level_label, name_to_id))
         logger.info(
             "%s level: %d unique (month, name) combinations",
             level_label, len(data),
