@@ -57,6 +57,7 @@ AIRTABLE_LEADS_COLUMNS = [
     "ConvertedDate",
     "Status",
     "Month",
+    "ad_id",
 ]
 
 
@@ -68,11 +69,14 @@ def _get_client() -> gspread.Client:
 
 
 def _ensure_header(ws: gspread.Worksheet, columns: list[str]) -> None:
-    """Write header row if the sheet is empty."""
+    """Write header row if empty, or update it if columns have changed (e.g. new column added)."""
     existing = ws.row_values(1)
     if not existing:
         ws.append_row(columns, value_input_option="RAW")
         logger.info("Wrote header row to sheet '%s'", ws.title)
+    elif existing != columns:
+        ws.update("A1", [columns], value_input_option="RAW")
+        logger.info("Updated header row in '%s' (columns changed)", ws.title)
 
 
 def _record_to_row(record: dict, columns: list[str]) -> list[Any]:

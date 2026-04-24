@@ -50,6 +50,18 @@ def _unwrap(value) -> str:
     return str(value) if value else ""
 
 
+def _normalize_ad_id(value) -> str:
+    """Normalises Meta ad_id to a plain integer string.
+    Handles large numbers that gspread may return as floats (e.g. 1.2e+17).
+    """
+    if not value:
+        return ""
+    try:
+        return str(int(float(str(value).strip())))
+    except (ValueError, TypeError):
+        return str(value).strip()
+
+
 def _month_from_date(date_str: str) -> str:
     """Returns 'Mmm YYYY' (e.g. 'Apr 2026') from a YYYY-MM-DD string."""
     if not date_str:
@@ -106,6 +118,7 @@ def pull_airtable_data() -> list[dict]:
                 "ConvertedDate": _parse_date(fields.get("Date Joined Membership", "")),
                 "Status": _unwrap(fields.get("Current Trial Status", "")),
                 "Month": _month_from_date(created),
+                "ad_id": _normalize_ad_id(fields.get("ad_id", "")),
             }
         )
 

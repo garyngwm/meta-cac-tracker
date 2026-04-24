@@ -48,16 +48,48 @@ def _month_sort_key(month_str: str) -> datetime:
 # Aggregation
 # ---------------------------------------------------------------------------
 
+def _normalize_ad_id(value) -> str:
+    """Normalises ad_id to plain integer string — handles floats from gspread."""
+    if not value:
+        return ""
+    try:
+        return str(int(float(str(value).strip())))
+    except (ValueError, TypeError):
+        return str(value).strip()
+
+
+def _build_ad_id_lookup(meta_records: list[dict]) -> dict[str, dict]:
+    """
+    Builds a lookup: ad_id -> {campaign_name, adset_name, ad_name}
+    from meta_spend records. Used for iOS-safe attribution in Airtable leads.
+    """
+    lookup: dict[str, dict] = {}
+    for r in meta_records:
+        aid = _normalize_ad_id(r.get("ad_id"))
+        if aid:
+            lookup[aid] = {
+                "campaign_name": str(r.get("campaign_name") or "").strip(),
+                "adset_name":    str(r.get("adset_name") or "").strip(),
+                "ad_name":       str(r.get("ad_name") or "").strip(),
+            }
+    return lookup
+
+
 def _aggregate(
     meta_records: list[dict],
     airtable_records: list[dict],
     meta_key: str,
     airtable_key: str,
     active_names: set | None = None,
+    ad_id_lookup: dict | None = None,
 ) -> dict[tuple, dict]:
     """
     Joins spend (meta) and leads/showups/conversions (airtable) on (month, name).
     Returns dict keyed by (month, name).
+
+    Attribution priority:
+    1. ad_id lookup (iOS-safe, set by Meta directly)
+    2. UTM name field fallback (for older leads without ad_id)
     """
     spend_by: dict[tuple, float] = defaultdict(float)
     for r in meta_records:
@@ -75,7 +107,15 @@ def _aggregate(
     leads_by: dict[tuple, dict] = defaultdict(lambda: {"leads": 0, "showups": 0, "conversions": 0})
     for r in airtable_records:
         month = str(r.get("Month") or "").strip()
-        name = str(r.get(airtable_key) or "").strip()
+
+        # Priority 1: ad_id lookup (iOS-safe)
+        aid = _normalize_ad_id(r.get("ad_id"))
+        if ad_id_lookup and aid and aid in ad_id_lookup:
+            name = str(ad_id_lookup[aid].get(meta_key) or "").strip()
+        else:
+            # Priority 2: UTM name fallback
+            name = str(r.get(airtable_key) or "").strip()
+
         if not month or not name:
             continue
         if active_names is not None and name not in active_names:
@@ -217,6 +257,10 @@ def write_cac_summary(
     """
     logger.info("Computing CAC summary …")
 
+    # Build ad_id lookup once — used across all three sections
+    ad_id_lookup = _build_ad_id_lookup(meta_records)
+    logger.info("Built ad_id lookup: %d unique ads", len(ad_id_lookup))
+
     all_rows: list[list] = []
 
     sections = [
@@ -226,7 +270,7 @@ def write_cac_summary(
     ]
 
     for level_label, meta_key, airtable_key, names_filter in sections:
-        data = _aggregate(meta_records, airtable_records, meta_key, airtable_key, names_filter)
+        data = _aggregate(meta_records, airtable_records, meta_key, airtable_key, names_filter, ad_id_lookup)
         all_rows.extend(_build_section(data, level_label))
         logger.info(
             "%s level: %d unique (month, name) combinations",
